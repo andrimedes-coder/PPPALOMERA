@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemelo Digital - Aerotermia Palomera</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #ecf0f1;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid #2980b9;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 1.4rem;
+            margin: 0 0 10px 0;
+        }
+        
+        /* Panel de Control Interactivo */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dcdde1;
+            margin-bottom: 15px;
+        }
+        .control-group {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #34495e;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .control-group.red { border-left-color: #e74c3c; }
+        .control-group.blue { border-left-color: #3498db; }
+        .control-title {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #7f8c8d;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        
+        /* Toggle Switch */
+        .switch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #2ecc71; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Panel de Tiempos y Telemetría */
+        .time-panel {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            width: 450px;
+        }
+        .time-panel-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        .time-markers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: #bdc3c7;
+        }
+        .marker-col {
+            display: flex;
+            flex-direction: column;
+        }
+        .marker-title {
+            color: #f1c40f;
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-align: center;
+            border-bottom: 1px dashed #7f8c8d;
+            padding-bottom: 2px;
+        }
+        .marker-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .marker-val {
+            font-weight: bold;
+            color: #fff;
+        }
+        .marker-done-heat { color: #2ecc71 !important; }
+        .marker-done-cool { color: #e74c3c !important; }
+        
+        .svg-container {
+            width: 100%;
+            overflow-x: auto;
+            background-color: #fff;
+            border: 1px solid #e1e4e8;
+            border-radius: 4px;
+            position: relative;
+        }
+        
+        /* Animaciones de flujo (Caudal) */
+        .pipe { transition: stroke 0.3s ease; }
+        .flow-active-hot { stroke-dasharray: 12 8; animation: flowHot 0.6s linear infinite; }
+        .flow-active-cold { stroke-dasharray: 12 8; animation: flowCold 0.6s linear infinite; }
+        
+        @keyframes flowHot { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+        @keyframes flowCold { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 20; } }
+        .tank-bg { transition: fill 0.3s linear; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>Gemelo Digital: Aerotermia INVERTER + Mezclador Termostático</h1>
+                <div style="font-size:0.85rem; color:#7f8c8d; max-width: 500px;">
+                    <b>Datos:</b> Agua red 10ºC. Ducha termostática 35ºC. La potencia de extracción se calcula termodinámicamente según la temperatura disponible en los acumuladores.
+                </div>
+            </div>
+            
+            <div class="time-panel">
+                <div class="time-panel-top">
+                    <span>Tiempo Simulado Total:</span>
+                    <span id="timeDisplay" style="color: #f1c40f; font-size: 1.4rem;">00:00</span>
+                </div>
+                <div class="time-markers-grid">
+                    <!-- ACS 1 -->
+                    <div class="marker-col">
+                        <div class="marker-title">ACS 1 (150L)</div>
+                        <div class="marker-row"><span>↑ a 50º:</span><span class="marker-val" id="t-up-acs1">00:00</span></div>
+                        <div class="marker-row"><span>↓ a 30º:</span><span class="marker-val" id="t-dn-acs1">00:00</span></div>
+                    </div>
+                    <!-- ACS 2 -->
+                    <div class="marker-col">
+                        <div class="marker-title">ACS 2 (150L)</div>
+                        <div class="marker-row"><span>↑ a 50º:</span><span class="marker-val" id="t-up-acs2">00:00</span></div>
+                        <div class="marker-row"><span>↓ a 30º:</span><span class="marker-val" id="t-dn-acs2">00:00</span></div>
+                    </div>
+                    <!-- INERCIA -->
+                    <div class="marker-col">
+                        <div class="marker-title">INERCIA (300L)</div>
+                        <div class="marker-row"><span>↑ a 65º:</span><span class="marker-val" id="t-up-inercia">00:00</span></div>
+                        <div class="marker-row" style="color:#7f8c8d; font-size:0.75rem; text-align:center; margin-top:2px;">Calefacción</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL INTERACTIVO DE MANDOS -->
+        <div class="dashboard">
+            <div class="control-group">
+                <div class="control-title">Habilitar Producción</div>
+                <div class="switch-row">
+                    <span>ACS 1 (150L)</span>
+                    <label class="switch"><input type="checkbox" id="sw-prod-acs1" checked onchange="simState.acs1_enabled = this.checked"><span class="slider"></span></label>
+                </div>
+                <div class="switch-row">
+                    <span>ACS 2 (150L)</span>
+                    <label class="switch"><input type="checkbox" id="sw-prod-acs2" checked onchange="simState.acs2_enabled = this.checked"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="control-group red">
+                <div class="control-title">Consumo Mezclador (35ºC Max)</div>
+                <div class="switch-row">
+                    <span>Ducha Piso 1 (15 kW)</span>
+                    <label class="switch"><input type="checkbox" id="sw-cons-d1" onchange="simState.ducha1_on = this.checked"><span class="slider"></span></label>
+                </div>
+                <div class="switch-row">
+                    <span>Ducha Piso 2 (15 kW)</span>
+                    <label class="switch"><input type="checkbox" id="sw-cons-d2" onchange="simState.ducha2_on = this.checked"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="control-group blue">
+                <div class="control-title">Termostatos Calefacción</div>
+                <div class="switch-row">
+                    <span>Radiadores Z1 (6.4 kW)</span>
+                    <label class="switch"><input type="checkbox" id="sw-rad-z1" onchange="simState.rad1_on = this.checked"><span class="slider"></span></label>
+                </div>
+                <div class="switch-row">
+                    <span>Radiadores Z2 (6.4 kW)</span>
+                    <label class="switch"><input type="checkbox" id="sw-rad-z2" onchange="simState.rad2_on = this.checked"><span class="slider"></span></label>
+                </div>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; justify-content:center; gap: 10px;">
+                 <button id="btnPlay" onclick="toggleSimulation()" style="padding: 12px; background: #27ae60; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">▶ INICIAR SIMULACIÓN</button>
+                 <button onclick="resetSimulation()" style="padding: 8px; background: #e74c3c; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">↻ Resetear Termodinámica</button>
+            </div>
+        </div>
+
+        <div class="svg-container">
+            <svg viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg" id="esquema-svg">
+                <!-- ==================== GENERACIÓN (AEROTERMIA) ==================== -->
+                <!-- Bomba Calor 1 -->
+                <rect x="30" y="380" width="130" height="100" rx="5" fill="#f8f9fa" stroke="#34495e" stroke-width="2"/>
+                <text x="40" y="405" font-family="Arial" font-size="12" font-weight="bold">Bomba Calor 1</text>
+                <text x="40" y="420" font-family="Arial" font-size="10" fill="#7f8c8d">Logica: Prioridad ACS</text>
+                <rect x="40" y="435" width="110" height="20" rx="3" fill="#ecf0f1" stroke="#bdc3c7"/>
+                <text id="lbl-pow-bc1" x="95" y="450" font-family="monospace" font-size="12" font-weight="bold" fill="#e74c3c" text-anchor="middle">0.0 kW</text>
+                <circle id="bc1-led" cx="140" cy="465" r="6" fill="#95a5a6"/> 
+
+                <!-- Bomba Calor 2 -->
+                <rect x="30" y="520" width="130" height="100" rx="5" fill="#f8f9fa" stroke="#34495e" stroke-width="2"/>
+                <text x="40" y="545" font-family="Arial" font-size="12" font-weight="bold">Bomba Calor 2</text>
+                <text x="40" y="560" font-family="Arial" font-size="10" fill="#7f8c8d">Logica: Fija Inercia</text>
+                <rect x="40" y="575" width="110" height="20" rx="3" fill="#ecf0f1" stroke="#bdc3c7"/>
+                <text id="lbl-pow-bc2" x="95" y="590" font-family="monospace" font-size="12" font-weight="bold" fill="#e74c3c" text-anchor="middle">0.0 kW</text>
+                <circle id="bc2-led" cx="140" cy="605" r="6" fill="#95a5a6"/> 
+
+                <!-- ==================== TUBERÍAS PRINCIPALES ==================== -->
+                <!-- Idas Comunes -->
+                <path id="pipe-ida-b1" class="pipe" d="M 160 400 L 220 400 L 220 180 L 270 180" fill="none" stroke="#bdc3c7" stroke-width="4" />
+                <path id="pipe-ida-b2" class="pipe" d="M 160 540 L 260 540 L 260 280 L 610 280" fill="none" stroke="#bdc3c7" stroke-width="4" />
+                <path id="pipe-ida-acs" class="pipe" d="M 290 180 L 440 180" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-ida-inercia" class="pipe" d="M 460 180 L 630 180 L 630 220" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                
+                <!-- Retornos Comunes -->
+                <path id="pipe-ret-gen" class="pipe" d="M 190 640 L 630 640" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-ret-b1" class="pipe" d="M 160 440 L 190 440 L 190 640" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-ret-b2" class="pipe" d="M 160 580 L 190 580 L 190 640" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-ret-acs1" class="pipe" d="M 360 170 L 360 190 L 300 190 L 300 640" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-ret-acs2" class="pipe" d="M 530 170 L 530 190 L 470 190 L 470 640" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-ret-inercia" class="pipe" d="M 630 400 L 630 640" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+
+                <!-- ETIQUETAS DE TEMPERATURA -->
+                <rect x="175" y="375" width="60" height="16" fill="#fff" stroke="#e74c3c" rx="2"/><text id="lbl-ida-b1" x="205" y="387" font-size="10" font-weight="bold" fill="#e74c3c" text-anchor="middle">-- ºC</text>
+                <rect x="175" y="515" width="60" height="16" fill="#fff" stroke="#e74c3c" rx="2"/><text id="lbl-ida-b2" x="205" y="527" font-size="10" font-weight="bold" fill="#e74c3c" text-anchor="middle">-- ºC</text>
+                <rect x="200" y="445" width="60" height="16" fill="#fff" stroke="#3498db" rx="2"/><text id="lbl-ret-b1" x="230" y="457" font-size="10" font-weight="bold" fill="#3498db" text-anchor="middle">-- ºC</text>
+                <rect x="200" y="585" width="60" height="16" fill="#fff" stroke="#3498db" rx="2"/><text id="lbl-ret-b2" x="230" y="597" font-size="10" font-weight="bold" fill="#3498db" text-anchor="middle">-- ºC</text>
+
+                <!-- ==================== ACUMULADORES ==================== -->
+                <!-- ACS 1 -->
+                <rect x="320" y="60" width="80" height="110" rx="15" fill="#ffffff" stroke="#e67e22" stroke-width="3"/>
+                <rect id="bg-acs1" class="tank-bg" x="323" y="63" width="74" height="104" rx="12" fill="rgb(52, 152, 219)" opacity="0.8"/>
+                <path id="serp-acs1" class="pipe" d="M 280 180 L 280 40 L 360 40 L 360 95 C 390 95, 390 110, 360 110 C 330 110, 330 125, 360 125 C 390 125, 390 140, 360 140 C 330 140, 330 155, 360 155 L 360 170" fill="none" stroke="#bdc3c7" stroke-width="3"/>
+                <text x="330" y="50" font-family="Arial" font-size="11" font-weight="bold">ACS 1 (50º)</text>
+                <rect x="335" y="100" width="50" height="20" rx="3" fill="rgba(255,255,255,0.9)" />
+                <text id="txt-acs1" x="360" y="115" font-family="monospace" font-size="14" font-weight="bold" fill="#2c3e50" text-anchor="middle">10.0ºC</text>
+
+                <!-- ACS 2 -->
+                <rect x="490" y="60" width="80" height="110" rx="15" fill="#ffffff" stroke="#e67e22" stroke-width="3"/>
+                <rect id="bg-acs2" class="tank-bg" x="493" y="63" width="74" height="104" rx="12" fill="rgb(52, 152, 219)" opacity="0.8"/>
+                <path id="serp-acs2" class="pipe" d="M 450 180 L 450 40 L 530 40 L 530 95 C 560 95, 560 110, 530 110 C 500 110, 500 125, 530 125 C 560 125, 560 140, 530 140 C 500 140, 500 155, 530 155 L 530 170" fill="none" stroke="#bdc3c7" stroke-width="3"/>
+                <text x="500" y="50" font-family="Arial" font-size="11" font-weight="bold">ACS 2 (50º)</text>
+                <rect x="505" y="100" width="50" height="20" rx="3" fill="rgba(255,255,255,0.9)" />
+                <text id="txt-acs2" x="530" y="115" font-family="monospace" font-size="14" font-weight="bold" fill="#2c3e50" text-anchor="middle">10.0ºC</text>
+
+                <!-- VASO DE INERCIA -->
+                <rect x="610" y="220" width="80" height="180" rx="8" fill="#ffffff" stroke="#2c3e50" stroke-width="3"/>
+                <rect id="bg-inercia" class="tank-bg" x="613" y="223" width="74" height="174" rx="6" fill="rgb(52, 152, 219)" opacity="0.8"/>
+                <text x="615" y="210" font-family="Arial" font-size="11" font-weight="bold">INERCIA (65º)</text>
+                <rect x="620" y="300" width="60" height="24" rx="3" fill="rgba(255,255,255,0.9)" />
+                <text id="txt-inercia" x="650" y="318" font-family="monospace" font-size="16" font-weight="bold" fill="#2c3e50" text-anchor="middle">10.0ºC</text>
+
+                <!-- VÁLVULAS V3V -->
+                <polygon id="v3v1-left" points="270,175 270,185 280,180" fill="#2c3e50"/>
+                <polygon id="v3v1-right" points="290,175 290,185 280,180" fill="#2c3e50"/>
+                <polygon id="v3v1-up" points="275,170 285,170 280,180" fill="#2c3e50"/>
+                
+                <polygon id="v3v2-left" points="440,175 440,185 450,180" fill="#2c3e50"/>
+                <polygon id="v3v2-right" points="460,175 460,185 450,180" fill="#2c3e50"/>
+                <polygon id="v3v2-up" points="445,170 455,170 450,180" fill="#2c3e50"/>
+
+                <!-- CONSUMOS (DUCHAS Y RADIADORES) -->
+                <!-- Ducha 1 -->
+                <path id="pipe-cons1" class="pipe" d="M 360 60 L 360 25 L 420 25 L 420 30" fill="none" stroke="#bdc3c7" stroke-width="3" />
+                <polygon points="410,35 430,35 425,30 415,30" fill="#7f8c8d"/>
+                <g id="water-d1" opacity="0"><line x1="412" y1="38" x2="412" y2="48" stroke="#3498db" stroke-width="2"/><line x1="420" y1="38" x2="420" y2="48" stroke="#3498db" stroke-width="2"/><line x1="428" y1="38" x2="428" y2="48" stroke="#3498db" stroke-width="2"/></g>
+                <text id="lbl-pow-d1" x="420" y="15" font-family="Arial" font-size="10" font-weight="bold" fill="#bdc3c7" text-anchor="middle">0.0 kW</text>
+
+                <!-- Ducha 2 -->
+                <path id="pipe-cons2" class="pipe" d="M 530 60 L 530 25 L 590 25 L 590 30" fill="none" stroke="#bdc3c7" stroke-width="3"/>
+                <polygon points="580,35 600,35 595,30 585,30" fill="#7f8c8d"/>
+                <g id="water-d2" opacity="0"><line x1="582" y1="38" x2="582" y2="48" stroke="#3498db" stroke-width="2"/><line x1="590" y1="38" x2="590" y2="48" stroke="#3498db" stroke-width="2"/><line x1="598" y1="38" x2="598" y2="48" stroke="#3498db" stroke-width="2"/></g>
+                <text id="lbl-pow-d2" x="590" y="15" font-family="Arial" font-size="10" font-weight="bold" fill="#bdc3c7" text-anchor="middle">0.0 kW</text>
+
+                <!-- Circuitos Radiadores Z1 y Z2 -->
+                <path id="pipe-sec-ida-z1" class="pipe" d="M 690 240 L 730 240 L 730 280 L 850 280" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-sec-ida-z2" class="pipe" d="M 690 240 L 730 240 L 730 380 L 850 380" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-sec-ret-z1" class="pipe" d="M 930 280 L 970 280 L 970 480 L 730 480 L 730 350 L 690 350" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+                <path id="pipe-sec-ret-z2" class="pipe" d="M 930 380 L 950 380 L 950 480 L 730 480 L 730 350 L 690 350" fill="none" stroke="#bdc3c7" stroke-width="4"/>
+
+                <rect x="740" y="255" width="55" height="16" fill="#fff" stroke="#e74c3c" rx="2"/><text id="lbl-ida-z1" x="767" y="267" font-size="10" font-weight="bold" fill="#e74c3c" text-anchor="middle">-- ºC</text>
+                <rect x="740" y="355" width="55" height="16" fill="#fff" stroke="#e74c3c" rx="2"/><text id="lbl-ida-z2" x="767" y="367" font-size="10" font-weight="bold" fill="#e74c3c" text-anchor="middle">-- ºC</text>
+                <rect x="940" y="295" width="55" height="16" fill="#fff" stroke="#3498db" rx="2"/><text id="lbl-ret-z1" x="967" y="307" font-size="10" font-weight="bold" fill="#3498db" text-anchor="middle">-- ºC</text>
+                <rect x="955" y="395" width="40" height="16" fill="#fff" stroke="#3498db" rx="2"/><text id="lbl-ret-z2" x="975" y="407" font-size="10" font-weight="bold" fill="#3498db" text-anchor="middle">-- ºC</text>
+
+                <rect x="850" y="250" width="80" height="60" rx="3" fill="#fdfefe" stroke="#7f8c8d" stroke-width="2"/>
+                <text x="890" y="330" font-family="Arial" font-size="11" font-weight="bold" text-anchor="middle">Radiadores Z1</text>
+                <rect x="850" y="250" width="80" height="15" fill="#f1c40f"/><text id="lbl-pow-z1" x="890" y="262" font-family="monospace" font-size="11" font-weight="bold" fill="#000" text-anchor="middle">0.0 kW</text>
+
+                <rect x="850" y="350" width="80" height="60" rx="3" fill="#fdfefe" stroke="#7f8c8d" stroke-width="2"/>
+                <text x="890" y="430" font-family="Arial" font-size="11" font-weight="bold" text-anchor="middle">Radiadores Z2</text>
+                <rect x="850" y="350" width="80" height="15" fill="#f1c40f"/><text id="lbl-pow-z2" x="890" y="362" font-family="monospace" font-size="11" font-weight="bold" fill="#000" text-anchor="middle">0.0 kW</text>
+            </svg>
+        </div>
+    </div>
+
+    <script>
+        // PARÁMETROS FÍSICOS
+        const VOL_ACS = 150 * 0.00116; // 0.174 kWh/K 
+        const VOL_IN = 300 * 0.00116;  // 0.348 kWh/K
+        const T_MAX_ACS = 50.0;
+        const T_MAX_IN = 65.0;
+        const T_MIX_MAX = 35.0;        // Grifo termostático (35ºC máximo)
+        const T_MIN = 10.0;            // Temperatura agua de red (Palomera)
+        const HIST_DEADBAND = 3.0;     
+        
+        const P_MAX_BC = 16.0;         
+        const P_MIN_BC = P_MAX_BC * 0.25; 
+        const P_DUCHA = 15.0;          // Demanda máxima neta si entrega agua a 35ºC
+        const P_RAD = 6.4;             
+
+        const simState = {
+            acs1_enabled: true, acs2_enabled: true,
+            ducha1_on: false, ducha2_on: false,
+            rad1_on: false, rad2_on: false
+        };
+
+        let demandACS1 = true, demandACS2 = true, demandInercia = true;
+        let tempACS1 = T_MIN, tempACS2 = T_MIN, tempInercia = T_MIN;
+        let isPlaying = false, simTime = 0, intervalId = null;
+        
+        // Relojes Individuales
+        let timerUpACS1 = 0, timerUpACS2 = 0, timerUpInercia = 0;
+        let doneUpACS1 = false, doneUpACS2 = false, doneUpInercia = false;
+        
+        let timerDnACS1 = 0, timerDnACS2 = 0;
+        let doneDnACS1 = false, doneDnACS2 = false;
+
+        function formatTime(minutes) {
+            const mins = Math.floor(minutes);
+            const secs = Math.floor((minutes - mins) * 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function getInverterPower(currentTemp, targetTemp) {
+            let errorTermico = targetTemp - currentTemp;
+            if (errorTermico <= 0) return 0; 
+            let requestedPower = (errorTermico / 8.0) * P_MAX_BC;
+            if (requestedPower < P_MIN_BC) requestedPower = P_MIN_BC; 
+            if (requestedPower > P_MAX_BC) requestedPower = P_MAX_BC; 
+            return requestedPower;
+        }
+
+        function getColorForTemp(temp) {
+            const T_ABS_MAX = Math.max(T_MAX_ACS, T_MAX_IN);
+            let ratio = (temp - T_MIN) / (T_ABS_MAX - T_MIN);
+            if (ratio < 0) ratio = 0; if (ratio > 1) ratio = 1;
+            const r = Math.round(52 + ratio * (231 - 52));
+            const g = Math.round(152 + ratio * (76 - 152));
+            const b = Math.round(219 + ratio * (60 - 219));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function resetSimulation() {
+            tempACS1 = T_MIN; tempACS2 = T_MIN; tempInercia = T_MIN;
+            demandACS1 = true; demandACS2 = true; demandInercia = true;
+            simTime = 0;
+            
+            timerUpACS1 = 0; timerUpACS2 = 0; timerUpInercia = 0;
+            doneUpACS1 = false; doneUpACS2 = false; doneUpInercia = false;
+            
+            timerDnACS1 = 0; timerDnACS2 = 0;
+            doneDnACS1 = false; doneDnACS2 = false;
+            
+            if (isPlaying) {
+                isPlaying = false;
+                clearInterval(intervalId);
+                document.getElementById('btnPlay').innerText = "▶ INICIAR SIMULACIÓN";
+                document.getElementById('btnPlay').style.background = "#27ae60";
+            }
+            updateVisuals(0, 0, 0, 0, 0, 0, 'none');
+        }
+
+        function toggleSimulation() {
+            if (isPlaying) {
+                isPlaying = false;
+                clearInterval(intervalId);
+                document.getElementById('btnPlay').innerText = "▶ REANUDAR SIMULACIÓN";
+                document.getElementById('btnPlay').style.background = "#27ae60";
+            } else {
+                isPlaying = true;
+                document.getElementById('btnPlay').innerText = "⏸ PAUSAR SIMULACIÓN";
+                document.getElementById('btnPlay').style.background = "#e67e22";
+                intervalId = setInterval(simulationTick, 100); 
+            }
+        }
+
+        function getDuchaPower(temp) {
+            // Lógica termostática: Si el tanque está por encima de 35ºC, roba los 15kW enteros.
+            // Si está por debajo, da la mezcla máxima que puede y la potencia extraíble cae proporcionalmente.
+            if (temp >= T_MIX_MAX) return P_DUCHA;
+            if (temp > T_MIN) return P_DUCHA * ((temp - T_MIN) / (T_MIX_MAX - T_MIN));
+            return 0;
+        }
+
+        function simulationTick() {
+            simTime += 0.5; 
+            let dt_hours = 0.5 / 60; 
+
+            // Control Histéresis
+            if (tempACS1 <= T_MAX_ACS - HIST_DEADBAND) demandACS1 = true;
+            if (tempACS1 >= T_MAX_ACS) demandACS1 = false;
+            if (tempACS2 <= T_MAX_ACS - HIST_DEADBAND) demandACS2 = true;
+            if (tempACS2 >= T_MAX_ACS) demandACS2 = false;
+            if (tempInercia <= T_MAX_IN - HIST_DEADBAND) demandInercia = true;
+            if (tempInercia >= T_MAX_IN) demandInercia = false;
+
+            // 1. CONSUMOS (Aplicando Termostática)
+            let p_out_acs1 = simState.ducha1_on ? getDuchaPower(tempACS1) : 0;
+            let p_out_acs2 = simState.ducha2_on ? getDuchaPower(tempACS2) : 0;
+            let p_out_z1 = (simState.rad1_on && tempInercia > 20) ? P_RAD : 0;
+            let p_out_z2 = (simState.rad2_on && tempInercia > 20) ? P_RAD : 0;
+            let p_out_inercia = p_out_z1 + p_out_z2;
+
+            // 2. LÓGICAS INVERTER BOMBAS
+            let p_in_inercia = 0, p_gen_bc2 = 0;
+            if (demandInercia) {
+                p_gen_bc2 = getInverterPower(tempInercia, T_MAX_IN);
+                p_in_inercia += p_gen_bc2;
+            }
+
+            let p_in_acs1 = 0, p_in_acs2 = 0, p_gen_bc1 = 0;
+            let target_bc1 = 'none';
+
+            let d1 = simState.acs1_enabled && demandACS1;
+            let d2 = simState.acs2_enabled && demandACS2;
+
+            if (d1 && d2) {
+                p_gen_bc1 = Math.min(P_MAX_BC, getInverterPower(tempACS1, T_MAX_ACS) + getInverterPower(tempACS2, T_MAX_ACS));
+                p_in_acs1 = p_gen_bc1 / 2; p_in_acs2 = p_gen_bc1 / 2;
+                target_bc1 = 'both_acs';
+            } else if (d1) {
+                p_gen_bc1 = getInverterPower(tempACS1, T_MAX_ACS); p_in_acs1 = p_gen_bc1; target_bc1 = 'acs1';
+            } else if (d2) {
+                p_gen_bc1 = getInverterPower(tempACS2, T_MAX_ACS); p_in_acs2 = p_gen_bc1; target_bc1 = 'acs2';
+            } else if (demandInercia) {
+                p_gen_bc1 = getInverterPower(tempInercia, T_MAX_IN); p_in_inercia += p_gen_bc1; target_bc1 = 'inercia';
+            }
+
+            // 3. ECUACIÓN DE CALOR
+            tempACS1 += ((p_in_acs1 - p_out_acs1) * dt_hours) / VOL_ACS;
+            tempACS2 += ((p_in_acs2 - p_out_acs2) * dt_hours) / VOL_ACS;
+            tempInercia += ((p_in_inercia - p_out_inercia) * dt_hours) / VOL_IN;
+
+            tempACS1 = Math.max(T_MIN, Math.min(tempACS1, T_MAX_ACS));
+            tempACS2 = Math.max(T_MIN, Math.min(tempACS2, T_MAX_ACS));
+            tempInercia = Math.max(T_MIN, Math.min(tempInercia, T_MAX_IN));
+
+            // 4. MARCADORES DE CALENTAMIENTO (UP)
+            if (!doneUpACS1 && simState.acs1_enabled) { timerUpACS1 += 0.5; if (tempACS1 >= T_MAX_ACS) doneUpACS1 = true; }
+            if (!doneUpACS2 && simState.acs2_enabled) { timerUpACS2 += 0.5; if (tempACS2 >= T_MAX_ACS) doneUpACS2 = true; }
+            if (!doneUpInercia) { timerUpInercia += 0.5; if (tempInercia >= T_MAX_IN) doneUpInercia = true; }
+
+            // 5. MARCADORES DE AGOTAMIENTO (DN) a 30ºC
+            // ACS 1
+            if (simState.ducha1_on && !doneDnACS1) {
+                if (tempACS1 > 30.0) timerDnACS1 += 0.5;
+                else doneDnACS1 = true;
+            }
+            if (tempACS1 >= T_MAX_ACS - 1) { timerDnACS1 = 0; doneDnACS1 = false; } // Reset al re-cargar
+
+            // ACS 2
+            if (simState.ducha2_on && !doneDnACS2) {
+                if (tempACS2 > 30.0) timerDnACS2 += 0.5;
+                else doneDnACS2 = true;
+            }
+            if (tempACS2 >= T_MAX_ACS - 1) { timerDnACS2 = 0; doneDnACS2 = false; } // Reset al re-cargar
+
+            updateVisuals(p_gen_bc1, p_gen_bc2, p_out_acs1, p_out_acs2, p_out_z1, p_out_z2, target_bc1);
+        }
+
+        function updateVisuals(pow_bc1, pow_bc2, pow_d1, pow_d2, pow_z1, pow_z2, target_bc1) {
+            document.getElementById('timeDisplay').innerText = formatTime(simTime);
+
+            // Update UP Timers
+            const lblUp1 = document.getElementById('t-up-acs1'); lblUp1.innerText = formatTime(timerUpACS1); lblUp1.className = doneUpACS1 ? "marker-val marker-done-heat" : "marker-val";
+            const lblUp2 = document.getElementById('t-up-acs2'); lblUp2.innerText = formatTime(timerUpACS2); lblUp2.className = doneUpACS2 ? "marker-val marker-done-heat" : "marker-val";
+            const lblUpIn = document.getElementById('t-up-inercia'); lblUpIn.innerText = formatTime(timerUpInercia); lblUpIn.className = doneUpInercia ? "marker-val marker-done-heat" : "marker-val";
+
+            // Update DOWN Timers
+            const lblDn1 = document.getElementById('t-dn-acs1'); lblDn1.innerText = formatTime(timerDnACS1); lblDn1.className = doneDnACS1 ? "marker-val marker-done-cool" : "marker-val";
+            const lblDn2 = document.getElementById('t-dn-acs2'); lblDn2.innerText = formatTime(timerDnACS2); lblDn2.className = doneDnACS2 ? "marker-val marker-done-cool" : "marker-val";
+
+            // Temps & Colors
+            document.getElementById('txt-acs1').textContent = tempACS1.toFixed(1) + "ºC";
+            document.getElementById('txt-acs2').textContent = tempACS2.toFixed(1) + "ºC";
+            document.getElementById('txt-inercia').textContent = tempInercia.toFixed(1) + "ºC";
+            document.getElementById('bg-acs1').setAttribute('fill', getColorForTemp(tempACS1));
+            document.getElementById('bg-acs2').setAttribute('fill', getColorForTemp(tempACS2));
+            document.getElementById('bg-inercia').setAttribute('fill', getColorForTemp(tempInercia));
+
+            // Telemetry
+            document.getElementById('lbl-pow-bc1').textContent = `${pow_bc1.toFixed(1)} kW`;
+            document.getElementById('lbl-pow-bc2').textContent = `${pow_bc2.toFixed(1)} kW`;
+            document.getElementById('lbl-pow-d1').textContent = simState.ducha1_on ? `-${pow_d1.toFixed(1)} kW` : '';
+            document.getElementById('lbl-pow-d1').setAttribute('fill', pow_d1 > 0 ? '#c0392b' : '#bdc3c7');
+            document.getElementById('lbl-pow-d2').textContent = simState.ducha2_on ? `-${pow_d2.toFixed(1)} kW` : '';
+            document.getElementById('lbl-pow-d2').setAttribute('fill', pow_d2 > 0 ? '#c0392b' : '#bdc3c7');
+            document.getElementById('lbl-pow-z1').textContent = simState.rad1_on ? `${pow_z1.toFixed(1)} kW` : `0.0 kW`;
+            document.getElementById('lbl-pow-z2').textContent = simState.rad2_on ? `${pow_z2.toFixed(1)} kW` : `0.0 kW`;
+
+            function setTag(id, val) { document.getElementById(id).textContent = val > 0 ? `${val.toFixed(0)} ºC` : '-- ºC'; }
+            
+            let ida_bc1 = 0, ret_bc1 = 0;
+            if (pow_bc1 > 0) {
+                if (target_bc1 === 'acs1') { ret_bc1 = tempACS1; ida_bc1 = tempACS1 + 10; }
+                else if (target_bc1 === 'acs2') { ret_bc1 = tempACS2; ida_bc1 = tempACS2 + 10; }
+                else if (target_bc1 === 'both_acs') { ret_bc1 = (tempACS1 + tempACS2) / 2; ida_bc1 = ret_bc1 + 10; }
+                else { ret_bc1 = tempInercia; ida_bc1 = tempInercia + 10; }
+            }
+            setTag('lbl-ida-b1', ida_bc1); setTag('lbl-ret-b1', ret_bc1);
+
+            let ida_bc2 = pow_bc2 > 0 ? tempInercia + 10 : 0;
+            let ret_bc2 = pow_bc2 > 0 ? tempInercia : 0;
+            setTag('lbl-ida-b2', ida_bc2); setTag('lbl-ret-b2', ret_bc2);
+
+            let ida_z1 = pow_z1 > 0 ? tempInercia : 0;
+            let ret_z1 = pow_z1 > 0 ? Math.max(20, tempInercia - 10) : 0;
+            setTag('lbl-ida-z1', ida_z1); setTag('lbl-ret-z1', ret_z1);
+
+            let ida_z2 = pow_z2 > 0 ? tempInercia : 0;
+            let ret_z2 = pow_z2 > 0 ? Math.max(20, tempInercia - 10) : 0;
+            setTag('lbl-ida-z2', ida_z2); setTag('lbl-ret-z2', ret_z2);
+
+            const setPipe = (id, activeHot, activeCold) => {
+                const el = document.getElementById(id);
+                el.classList.toggle('flow-active-hot', activeHot);
+                el.classList.toggle('flow-active-cold', activeCold);
+                el.setAttribute('stroke', activeHot ? '#e74c3c' : (activeCold ? '#3498db' : '#bdc3c7'));
+            };
+
+            document.getElementById('bc1-led').setAttribute('fill', pow_bc1 > 0 ? '#f1c40f' : '#95a5a6');
+            document.getElementById('bc2-led').setAttribute('fill', pow_bc2 > 0 ? '#f1c40f' : '#95a5a6');
+
+            setPipe('pipe-ida-b1', pow_bc1 > 0, false); setPipe('pipe-ret-b1', false, pow_bc1 > 0);
+            setPipe('pipe-ida-b2', pow_bc2 > 0, false); setPipe('pipe-ret-b2', false, pow_bc2 > 0);
+            setPipe('pipe-ret-gen', false, pow_bc1 > 0 || pow_bc2 > 0);
+
+            let actACS1 = target_bc1 === 'acs1' || target_bc1 === 'both_acs';
+            let actACS2 = target_bc1 === 'acs2' || target_bc1 === 'both_acs';
+            let actInerBC1 = target_bc1 === 'inercia';
+            
+            setPipe('serp-acs1', actACS1, false); setPipe('pipe-ret-acs1', false, actACS1);
+            setPipe('pipe-ida-acs', actACS2 || actInerBC1 || target_bc1 === 'both_acs', false);
+            setPipe('serp-acs2', actACS2, false); setPipe('pipe-ret-acs2', false, actACS2);
+            setPipe('pipe-ida-inercia', actInerBC1, false); setPipe('pipe-ret-inercia', false, actInerBC1 || pow_bc2 > 0);
+
+            document.getElementById('v3v1-up').setAttribute('fill', actACS1 ? '#2ecc71' : '#2c3e50');
+            document.getElementById('v3v1-right').setAttribute('fill', (actACS2 || actInerBC1 || target_bc1 === 'both_acs') ? '#2ecc71' : '#2c3e50');
+            document.getElementById('v3v2-up').setAttribute('fill', actACS2 ? '#2ecc71' : '#2c3e50');
+            document.getElementById('v3v2-right').setAttribute('fill', actInerBC1 ? '#2ecc71' : '#2c3e50');
+
+            setPipe('pipe-cons1', simState.ducha1_on, false);
+            document.getElementById('water-d1').setAttribute('opacity', simState.ducha1_on ? '1' : '0');
+            
+            setPipe('pipe-cons2', simState.ducha2_on, false);
+            document.getElementById('water-d2').setAttribute('opacity', simState.ducha2_on ? '1' : '0');
+
+            setPipe('pipe-sec-ida-z1', simState.rad1_on, false); setPipe('pipe-sec-ret-z1', false, simState.rad1_on);
+            setPipe('pipe-sec-ida-z2', simState.rad2_on, false); setPipe('pipe-sec-ret-z2', false, simState.rad2_on);
+        }
+
+        updateVisuals(0,0,0,0,0,0,'none');
+    </script>
+</body>
+</html>
